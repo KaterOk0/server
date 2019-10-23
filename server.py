@@ -19,24 +19,25 @@ def login():
     data = request.get_json()
     user, password = data.get('user'), data.get('password')
 
-    try:
-        if users.get(user, {}).get('password') != password:
-            raise ValueError('Incorrect login or password!')
-        publicKey = int(data['key']['x']), int(data['key']['n'])
-        sessionKey = getSessionKey(KEY_LENGTH)
-        encryptedKey = gm.encrypt(publicKey, sessionKey)
+    if users.get(user, {}).get('password') == password:
+        try:
+            publicKey = int(data['key']['x']), int(data['key']['n'])
+            sessionKey = getSessionKey(KEY_LENGTH)
+            encryptedKey = gm.encrypt(publicKey, sessionKey)
 
-        if __debug__:
-            print('SESSION_KEY:', session_key)
+            if __debug__:
+                print('SESSION_KEY:', sessionKey)
 
-        users[user]['sessionKey'] = sessionKey
-        users[user]['creationTime'] = time()
+            users[user]['sessionKey'] = sessionKey
+            users[user]['creationTime'] = time()
 
-        json = returnValue(data={'sessionKey': encryptedKey})
-    except ValueError as error:
-        json = returnValue(error=error)
-
+            json = returnValue(data={'sessionKey': encryptedKey})
+        except ValueError:
+            json = returnValue(error='Incorrect public key!')
+    else:
+        json = returnValue(error='Incorrect login or password!')
     return json
+
 
 
 @app.route('/file', methods=['POST'])
@@ -58,6 +59,7 @@ def getFile():
                 print('ENCRYPTION CORRECT:', bytes(decrypted).startswith(bytes(data)))
             json = returnValue(data={'encrypted': encrypted})
     except ValueError as error:
+        print(error)
         json = returnValue(error=error)
     return json
 
