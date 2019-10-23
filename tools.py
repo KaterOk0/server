@@ -14,3 +14,7 @@ def isKeyExpired(timeCreation):
 
 def returnValue(data=None, error=None):
     return jsonify(data=data, error=error)
+
+
+def getInitVector(length):
+    return ''.join(random.sample(chars, length))

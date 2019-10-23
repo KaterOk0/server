@@ -1,4 +1,6 @@
 from flask import Flask, request, jsonify
+
+from algorithms import aes
 from tools import *
 from algorithms import *
 from time import *
@@ -17,23 +19,23 @@ def login():
     data = request.get_json()
     user, password = data.get('user'), data.get('password')
 
-    if users.get(user, {}).get('password') == password:
-        try:
-            publicKey = int(data['key']['q']), int(data['key']['p'])
-            sessionKey = getSessionKey(KEY_LENGTH)
-            encryptedKey = gm.encrypt(publicKey, sessionKey)
+    try:
+        if users.get(user, {}).get('password') != password:
+            raise ValueError('Incorrect login or password!')
+        publicKey = int(data['key']['x']), int(data['key']['n'])
+        sessionKey = getSessionKey(KEY_LENGTH)
+        encryptedKey = gm.encrypt(publicKey, sessionKey)
 
-            if __debug__:
-                print('SESSION_KEY:', session_key)
+        if __debug__:
+            print('SESSION_KEY:', session_key)
 
-            users[user]['sessionKey'] = sessionKey
-            users[user]['creationTime'] = time()
+        users[user]['sessionKey'] = sessionKey
+        users[user]['creationTime'] = time()
 
-            json = returnValue(data={'sessionKey': encryptedKey})
-        except ValueError:
-            json = returnValue(error='Incorrect public key!')
-    else:
-        json = returnValue(error='Incorrect login or password!')
+        json = returnValue(data={'sessionKey': encryptedKey})
+    except ValueError as error:
+        json = returnValue(error=error)
+
     return json
 
 
@@ -42,19 +44,21 @@ def getFile():
     data = request.get_json()
     user = users.get(data['user'], {})
 
-    if user.get('sessionKey') and not isKeyExpired(user.get('creationTime')):
+    try:
+        if not user.get('sessionKey') or isKeyExpired(user.get('creationTime')):
+            raise ValueError('Required new session key. Session key has expired!')
 
         sessionKey = user['sessionKey']
 
         with open(os.path.join(APP_ROOT, 'notebook.txt'), 'rb') as f:
             data = list(f.read())
-            encrypted = cfb.encrypt(data, sessionKey)
+            encrypted = aes.encrypt(data, sessionKey)
             if __debug__:
-                decrypted = cfb.decrypt(encrypted, sessionKey)
+                decrypted = aes.decrypt(encrypted, sessionKey)
                 print('ENCRYPTION CORRECT:', bytes(decrypted).startswith(bytes(data)))
-            json = returnValue(data={'encrypted': encryptedData})
-    else:
-        json = returnValue(error='Required new session key. Session key has expired!')
+            json = returnValue(data={'encrypted': encrypted})
+    except ValueError as error:
+        json = returnValue(error=error)
     return json
 
 
@@ -62,10 +66,14 @@ def getFile():
 def getGmKeys():
     data = request.get_json()
     try:
-        publicKey, privateKey = gm.generatePairKey(int(data['p']), int(data['q']))
-        e, n = publicKey
-        d, n = privateKey
-        json = returnValue(data={'e': e, 'd': d, 'n': n})
+        p = int(data['p'])
+        q = int(data['q'])
+        if not (gm.isPrimeNumber(p) and gm.isPrimeNumber(q)):
+            raise ValueError('Required prime numbers!')
+        publicKey, privateKey = gm.generatePairKey(p, q)
+        x, n = publicKey
+        p, q = privateKey
+        json = returnValue(data={'x': x, 'n': n, 'p': p, 'q': q})
     except ValueError as error:
         json = returnValue(error=str(error))
     return json
@@ -75,7 +83,7 @@ def getGmKeys():
 def gmDecrypt():
     data = request.get_json()
     try:
-        privateKey = int(data['key']['d']), int(data['key']['n'])
+        privateKey = int(data['key']['p']), int(data['key']['q'])
         data = data['data']
         json = returnValue({'decrypted': gm.decrypt(privateKey, data)})
     except ValueError:
@@ -84,12 +92,12 @@ def gmDecrypt():
 
 
 @app.route('/private/cfb/decrypt', methods=['POST'])
-def cfbDecrypt():
+def aesDecrypt():
     data = request.get_json()
     encrypted, sessionKey = data['encrypted'], data['key']
-    decrypted = bytes(cfb.decrypt(encrypted, sessionKey)).decode('utf-8', 'ignore')
+    decrypted = bytes(aes.decrypt(encrypted, sessionKey)).decode('utf-8', 'ignore')
     return returnValue({'text': decrypted})
 
 
 if __name__ == '__main__':
-    app.run(host='192.168.0.106')
+    app.run(host='192.168.43.205')
