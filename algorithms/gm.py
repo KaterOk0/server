@@ -12,7 +12,7 @@ def isQuadraticResidue(x, p):
 
 
 def isPrimeNumber(x):
-    for i in range(2, x - 1):
+    for i in range(2, x):
         if x % i == 0:
             return False
     return True
@@ -44,7 +44,7 @@ def encrypt(publicKey, text):
     for _ in input:
         for _ in range(MAX_ITER):
             yi = randint(3, MAX_RANDOM)
-            if gcd(yi, n) == 1:
+            if gcd(yi, int(n)) == 1:
                 y.append(yi)
                 break
     output = [(yi**2 * x**b) % n for yi, b in zip(y, input)]
